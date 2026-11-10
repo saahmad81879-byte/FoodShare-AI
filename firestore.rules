@@ -1,0 +1,163 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Pillar 1)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'saahmad81879@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // --- Users Collection ---
+    match /users/{userId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() && isUser(userId) &&
+        isValidId(userId) &&
+        incoming().uid == request.auth.uid &&
+        incoming().email is string && incoming().email.size() <= 256 &&
+        incoming().displayName is string && incoming().displayName.size() <= 120 &&
+        incoming().role in ['donor', 'ngo', 'volunteer', 'admin'] &&
+        (incoming().role != 'admin' || isAdmin());
+
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (
+          isUser(userId) &&
+          incoming().uid == existing().uid &&
+          // Cannot elevate oneself to admin
+          (incoming().role == existing().role || (existing().role != 'admin' && incoming().role in ['donor', 'ngo', 'volunteer']))
+        )
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // Admins registry
+    match /admins/{adminId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // --- Donations Collection ---
+    function isValidDonationShape(data) {
+      return data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+        data.category is string &&
+        data.quantityKg is number && data.quantityKg > 0 && data.quantityKg <= 100000 &&
+        data.donorId is string && data.donorId.size() <= 128 &&
+        data.donorName is string && data.donorName.size() <= 120 &&
+        data.pickupAddress is string && data.pickupAddress.size() <= 300 &&
+        data.status in ['available', 'requested', 'matched', 'in_transit', 'delivered', 'cancelled'] &&
+        data.safetyVerificationCompleted is bool;
+    }
+
+    match /donations/{donationId} {
+      allow read: if isSignedIn();
+
+      // Donors can create their own donation
+      allow create: if isSignedIn() &&
+        isValidId(donationId) &&
+        incoming().donorId == request.auth.uid &&
+        incoming().status == 'available' &&
+        incoming().safetyVerificationCompleted == true &&
+        isValidDonationShape(incoming());
+
+      // Action-based updates
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        (
+          // Don't allow modifying delivered/cancelled donations except by admin
+          existing().status != 'delivered' &&
+          existing().status != 'cancelled' &&
+          isValidDonationShape(incoming()) &&
+          incoming().donorId == existing().donorId &&
+          (
+            // Action 1: Donor updates details while still available
+            (existing().donorId == request.auth.uid && existing().status == 'available') ||
+
+            // Action 2: NGO claims/requests available donation (prevents double claim)
+            (
+              existing().status == 'available' &&
+              incoming().status == 'requested' &&
+              incoming().requestedByNgoId == request.auth.uid
+            ) ||
+
+            // Action 3: NGO updates collection status or distribution
+            (
+              existing().requestedByNgoId == request.auth.uid &&
+              (
+                incoming().status in ['requested', 'matched', 'in_transit', 'delivered']
+              )
+            ) ||
+
+            // Action 4: Donor or NGO cancels their request or releases back to available
+            (
+              existing().status == 'requested' &&
+              (existing().donorId == request.auth.uid || existing().requestedByNgoId == request.auth.uid) &&
+              (incoming().status == 'available' || incoming().status == 'cancelled' || incoming().status == 'matched')
+            ) ||
+
+            // Action 5: Volunteer accepts pickup or updates transit
+            (
+              (existing().status in ['requested', 'matched', 'in_transit']) &&
+              (
+                (incoming().status == 'in_transit' && incoming().volunteerId == request.auth.uid) ||
+                (incoming().status == 'delivered' && existing().volunteerId == request.auth.uid)
+              )
+            ) ||
+
+            // Action 6: Donor confirms direct handover
+            (
+              incoming().status == 'delivered' &&
+              existing().donorId == request.auth.uid
+            )
+          )
+        )
+      );
+
+      // Only donor before it's picked up, or Admin, can delete
+      allow delete: if isAdmin() || (
+        isSignedIn() &&
+        existing().donorId == request.auth.uid &&
+        (existing().status == 'available' || existing().status == 'cancelled')
+      );
+    }
+
+    // --- Impact Logs Collection ---
+    match /impact_logs/{logId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        isValidId(logId) &&
+        incoming().donationId is string &&
+        incoming().kgRescued is number && incoming().kgRescued > 0;
+      allow update, delete: if isAdmin();
+    }
+  }
+}

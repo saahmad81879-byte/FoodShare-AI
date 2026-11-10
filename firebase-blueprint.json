@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with role-based access control and contact details.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 256 },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "role": { "type": "string", "enum": ["donor", "ngo", "volunteer", "admin"] },
+        "organization": { "type": "string", "maxLength": 160 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "address": { "type": "string", "maxLength": 256 },
+        "isVerified": { "type": "boolean" },
+        "capacityKg": { "type": "number" },
+        "vehicleType": { "type": "string", "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "role"]
+    },
+    "FoodDonation": {
+      "title": "FoodDonation",
+      "description": "Food surplus donation record with safety, location, and lifecycle status.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "title": { "type": "string", "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "category": { "type": "string", "enum": ["prepared_meals", "bakery", "produce", "dairy", "canned_goods", "frozen", "beverages", "other"] },
+        "quantityKg": { "type": "number" },
+        "estimatedServings": { "type": "number" },
+        "donorId": { "type": "string", "maxLength": 128 },
+        "donorName": { "type": "string", "maxLength": 120 },
+        "donorOrg": { "type": "string", "maxLength": 160 },
+        "donorPhone": { "type": "string", "maxLength": 40 },
+        "pickupAddress": { "type": "string", "maxLength": 256 },
+        "pickupDeadline": { "type": "string", "maxLength": 100 },
+        "imageUrl": { "type": "string", "maxLength": 250000 },
+        "lat": { "type": "number" },
+        "lng": { "type": "number" },
+        "storageCondition": { "type": "string", "enum": ["ambient", "refrigerated", "frozen", "hot_holding"] },
+        "preparationTime": { "type": "string", "maxLength": 100 },
+        "expiryWindow": { "type": "string", "maxLength": 100 },
+        "allergens": { "type": "string", "maxLength": 256 },
+        "handlingNotes": { "type": "string", "maxLength": 1000 },
+        "safetyVerificationCompleted": { "type": "boolean" },
+        "humanVerifierName": { "type": "string", "maxLength": 120 },
+        "status": { "type": "string", "enum": ["available", "requested", "matched", "in_transit", "delivered", "cancelled"] },
+        "requestedByNgoId": { "type": "string", "maxLength": 128 },
+        "requestedByNgoName": { "type": "string", "maxLength": 160 },
+        "collectionStatus": { "type": "string", "enum": ["pending", "scheduled", "in_transit", "collected", "distributed"] },
+        "collectionTime": { "type": "string", "maxLength": 100 },
+        "actualDistributionConfirmed": { "type": "boolean" },
+        "beneficiariesServed": { "type": "number" },
+        "distributionNotes": { "type": "string", "maxLength": 1000 },
+        "volunteerId": { "type": "string", "maxLength": 128 },
+        "volunteerName": { "type": "string", "maxLength": 120 },
+        "aiPriorityScore": { "type": "number" },
+        "aiPriorityReason": { "type": "string", "maxLength": 1000 },
+        "aiSummary": { "type": "string", "maxLength": 1500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "category", "quantityKg", "donorId", "donorName", "pickupAddress", "status", "safetyVerificationCompleted"]
+    },
+    "ImpactLog": {
+      "title": "ImpactLog",
+      "description": "Logged environmental and community impact for completed food rescues.",
+      "type": "object",
+      "properties": {
+        "donationId": { "type": "string", "maxLength": 128 },
+        "donorId": { "type": "string", "maxLength": 128 },
+        "ngoId": { "type": "string", "maxLength": 128 },
+        "volunteerId": { "type": "string", "maxLength": 128 },
+        "kgRescued": { "type": "number" },
+        "co2AvoidedKg": { "type": "number" },
+        "mealsProvided": { "type": "number" },
+        "waterSavedLiters": { "type": "number" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["donationId", "kgRescued", "mealsProvided"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile with role and verification"
+    },
+    "/donations/{donationId}": {
+      "schema": "FoodDonation",
+      "description": "Food donation surplus postings and fulfillment lifecycle"
+    },
+    "/impact_logs/{logId}": {
+      "schema": "ImpactLog",
+      "description": "Impact calculations for completed rescues"
+    }
+  }
+}

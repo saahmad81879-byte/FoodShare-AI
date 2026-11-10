@@ -1,0 +1,6 @@
+{
+  "name": "FoodShare AI",
+  "description": "Sustainable food rescue platform connecting food donors, NGOs, and volunteers with AI-powered matching, priority routing, and real-time impact analytics.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
